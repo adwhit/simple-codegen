@@ -10,7 +10,6 @@ but should not stop the user from building more complicated constructs.
 Example:
 
 ```rust
-
 let my_struct = Struct {
     name: "MyStruct".into(),
     vis: Visibility::Public,

@@ -85,6 +85,40 @@ impl fmt::Display for Enum {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct NewType {
+    name: String,
+    vis: Visibility,
+    attrs: Attributes,
+    typ: String,
+}
+
+impl ToTokens for NewType {
+    fn to_tokens(&self, tokens: &mut Tokens) {
+        let name = Ident::from(&*self.name);
+        let typ = Ident::from(&*self.typ);
+        let attrs = &self.attrs;
+        let vis = self.vis;
+        let toks = quote! {
+            #attrs #vis struct #name(#typ);
+        };
+        tokens.append(toks);
+    }
+}
+
+impl fmt::Display for NewType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let tokens = quote!{#self};
+        write!(f, "{}", tokens)
+    }
+}
+
+// #[derive(Clone, Default)]
+// pub struct Alias {
+//     name: String,
+//     typ: String
+// }
+
 #[derive(Debug, Clone, Default)]
 pub struct Attributes {
     pub derive: Vec<DeriveAttr>,
@@ -366,6 +400,19 @@ pub(crate) enum MyEnum {
     Variant2(VType),
 }
 "#;
+        assert_eq!(pretty, expect);
+    }
+
+    #[test]
+    fn test_newtype() {
+        let n = NewType {
+            name: "MyNewType".into(),
+            vis: Visibility::Private,
+            attrs: Default::default(),
+            typ: "MyOldType".into()
+        };
+        let pretty = rust_format(&n.to_string()).unwrap();
+        let expect = "struct MyNewType(MyOldType);\n";
         assert_eq!(pretty, expect);
     }
 }
