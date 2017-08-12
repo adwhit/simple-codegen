@@ -99,7 +99,8 @@ impl ToTokens for NewType {
         let typ = Ident::from(&*self.typ);
         let attrs = &self.attrs;
         let vis = self.vis;
-        let toks = quote! {
+        let toks =
+            quote! {
             #attrs #vis struct #name(#typ);
         };
         tokens.append(toks);
@@ -121,8 +122,8 @@ impl fmt::Display for NewType {
 
 #[derive(Debug, Clone, Default)]
 pub struct Attributes {
-    pub derive: Vec<DeriveAttr>,
-    pub cfg: Vec<CfgAttr>,
+    pub derive: Vec<Derive>,
+    pub cfg: Vec<Cfg>,
     pub custom: Vec<String>,
 }
 
@@ -260,35 +261,37 @@ impl ToTokens for FieldAttr {
 // }
 
 #[derive(Clone, Debug)]
-pub enum DeriveAttr {
+pub enum Derive {
     Debug,
     Copy,
     Clone,
     PartialEq,
     Eq,
     Hash,
+    PartialOrd,
+    Ord,
     Custom(String),
 }
 
-impl fmt::Display for DeriveAttr {
+impl fmt::Display for Derive {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            DeriveAttr::Custom(ref custom) => write!(f, "{}", custom),
+            Derive::Custom(ref custom) => write!(f, "{}", custom),
             ref other => write!(f, "{:?}", other),
         }
     }
 }
 
 #[derive(Clone, Debug)]
-pub enum CfgAttr {
+pub enum Cfg {
     Test,
     TargetOs(String),
     Custom(String),
 }
 
-impl fmt::Display for CfgAttr {
+impl fmt::Display for Cfg {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use CfgAttr::*;
+        use Cfg::*;
         match *self {
             Test => write!(f, "test"),
             TargetOs(ref target) => write!(f, "target_os = \"{}\"", target),
@@ -331,6 +334,9 @@ pub fn rust_format(code: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use Derive::*;
+    use Cfg::*;
+    use FieldAttr::*;
 
     #[test]
     fn test_struct() {
@@ -338,8 +344,8 @@ mod tests {
             name: "MyStruct".into(),
             vis: Visibility::Public,
             attrs: Attributes {
-                derive: vec![DeriveAttr::Clone, DeriveAttr::Debug],
-                cfg: vec![CfgAttr::Test, CfgAttr::TargetOs("linux".into())],
+                derive: vec![Clone, Debug],
+                cfg: vec![Test, TargetOs("linux".into())],
                 ..Default::default()
             },
             fields: vec![
@@ -347,10 +353,7 @@ mod tests {
                 Field::new(
                     "field2".into(),
                     "Type2".into(),
-                    vec![
-                        FieldAttr::SerdeRename("Field-2".into()),
-                        FieldAttr::SerdeDefault,
-                    ]
+                    vec![SerdeRename("Field-2".into()), SerdeDefault]
                 ),
             ],
         };
@@ -374,11 +377,7 @@ pub struct MyStruct {
             name: "MyEnum".into(),
             vis: Visibility::Crate,
             attrs: Attributes {
-                derive: vec![
-                    DeriveAttr::Clone,
-                    DeriveAttr::Eq,
-                    DeriveAttr::Custom("MyDerive".into()),
-                ],
+                derive: vec![Clone, Eq, Derive::Custom("MyDerive".into())],
                 custom: vec!["my_custom_attribute".into()],
                 ..Default::default()
             },
@@ -409,7 +408,7 @@ pub(crate) enum MyEnum {
             name: "MyNewType".into(),
             vis: Visibility::Private,
             attrs: Default::default(),
-            typ: "MyOldType".into()
+            typ: "MyOldType".into(),
         };
         let pretty = rust_format(&n.to_string()).unwrap();
         let expect = "struct MyNewType(MyOldType);\n";
