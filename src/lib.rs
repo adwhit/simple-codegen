@@ -26,7 +26,7 @@ pub struct Struct {
     pub name: String,
     pub vis: Visibility,
     pub attrs: Attributes,
-    pub fields: Vec<Field>
+    pub fields: Vec<Field>,
 }
 
 impl ToTokens for Struct {
@@ -58,7 +58,7 @@ pub struct Enum {
     pub name: String,
     pub vis: Visibility,
     pub attrs: Attributes,
-    pub variants: Vec<Variant>
+    pub variants: Vec<Variant>,
 }
 
 impl ToTokens for Enum {
@@ -119,12 +119,12 @@ impl ToTokens for Attributes {
 pub struct Field {
     pub name: String,
     pub typ: String,
-    pub attrs: Vec<FieldAttr>  // TODO separate field attrs?
+    pub attrs: Vec<FieldAttr>, // TODO separate field attrs?
 }
 
 impl Field {
     pub fn new(name: String, typ: String, attrs: Vec<FieldAttr>) -> Field {
-        Field {name, typ, attrs}
+        Field { name, typ, attrs }
     }
 }
 
@@ -146,12 +146,12 @@ impl ToTokens for Field {
 pub struct Variant {
     pub name: String,
     pub typ: Option<String>,
-    pub attrs: Vec<FieldAttr>  // TODO separate field attrs?
+    pub attrs: Vec<FieldAttr>, // TODO separate field attrs?
 }
 
 impl Variant {
     pub fn new(name: String, typ: Option<String>, attrs: Vec<FieldAttr>) -> Variant {
-        Variant{ name, typ, attrs}
+        Variant { name, typ, attrs }
     }
 }
 
@@ -212,7 +212,7 @@ impl ToTokens for FieldAttr {
         match *self {
             SerdeDefault => tokens.append(format!("#[serde(default)]")),
             SerdeRename(ref name) => tokens.append(format!("#[serde(rename = \"{}\")]", name)),
-            Custom(ref name) => tokens.append(name)
+            Custom(ref name) => tokens.append(name),
         }
     }
 }
@@ -233,14 +233,14 @@ pub enum DeriveAttr {
     PartialEq,
     Eq,
     Hash,
-    Custom(String)
+    Custom(String),
 }
 
 impl fmt::Display for DeriveAttr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             DeriveAttr::Custom(ref custom) => write!(f, "{}", custom),
-            ref other => write!(f, "{:?}", other)
+            ref other => write!(f, "{:?}", other),
         }
     }
 }
@@ -249,7 +249,7 @@ impl fmt::Display for DeriveAttr {
 pub enum CfgAttr {
     Test,
     TargetOs(String),
-    Custom(String)
+    Custom(String),
 }
 
 impl fmt::Display for CfgAttr {
@@ -300,7 +300,7 @@ mod tests {
 
     #[test]
     fn test_struct() {
-        let s = Struct {
+        let my_struct = Struct {
             name: "MyStruct".into(),
             vis: Visibility::Public,
             attrs: Attributes {
@@ -310,22 +310,28 @@ mod tests {
             },
             fields: vec![
                 Field::new("field1".into(), "Type1".into(), Default::default()),
-                Field::new("field2".into(), "Type2".into(),
-                           vec![FieldAttr::SerdeRename("Field-2".into()),
-                                FieldAttr::SerdeDefault])]
+                Field::new(
+                    "field2".into(),
+                    "Type2".into(),
+                    vec![
+                        FieldAttr::SerdeRename("Field-2".into()),
+                        FieldAttr::SerdeDefault,
+                    ]
+                ),
+            ],
         };
 
-        let pretty = rust_format(&s.to_string()).unwrap();
-        let expect = r#"
-#[derive(Clone, Debug)]
+        let pretty = rust_format(&my_struct.to_string()).unwrap();
+        let expect = r#"#[derive(Clone, Debug)]
 #[cfg(test, target_os = "linux")]
 pub struct MyStruct {
     field1: Type1,
     #[serde(rename = "Field-2")]
     #[serde(default)]
     field2: Type2,
-}"#;
-        assert_eq!(pretty.trim(), expect.trim());
+}
+"#;
+        assert_eq!(pretty, expect);
     }
 
     #[test]
@@ -334,28 +340,32 @@ pub struct MyStruct {
             name: "MyEnum".into(),
             vis: Visibility::Crate,
             attrs: Attributes {
-                derive: vec![DeriveAttr::Clone,
-                             DeriveAttr::Eq,
-                             DeriveAttr::Custom("MyDerive".into())],
+                derive: vec![
+                    DeriveAttr::Clone,
+                    DeriveAttr::Eq,
+                    DeriveAttr::Custom("MyDerive".into()),
+                ],
                 custom: vec!["my_custom_attribute".into()],
                 ..Default::default()
             },
             variants: vec![
-                Variant::new("Variant1".into(), Default::default(), vec![
-                    FieldAttr::SerdeRename("used-to-be-this".into())
-                    ]),
-                Variant::new("Variant2".into(), Some("VType".into()), Default::default())
-                ]
+                Variant::new(
+                    "Variant1".into(),
+                    Default::default(),
+                    vec![FieldAttr::SerdeRename("used-to-be-this".into())]
+                ),
+                Variant::new("Variant2".into(), Some("VType".into()), Default::default()),
+            ],
         };
         let pretty = rust_format(&e.to_string()).unwrap();
-        let expect = r#"
-#[derive(Clone, Eq, MyDerive)]
+        let expect = r#"#[derive(Clone, Eq, MyDerive)]
 #[my_custom_attribute]
 pub(crate) enum MyEnum {
     #[serde(rename = "used-to-be-this")]
     Variant1,
     Variant2(VType),
-}"#;
-        assert_eq!(pretty.trim(), expect.trim());
+}
+"#;
+        assert_eq!(pretty, expect);
     }
 }
