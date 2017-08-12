@@ -46,6 +46,13 @@ impl ToTokens for Struct {
     }
 }
 
+impl fmt::Display for Struct {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let tokens = quote!{#self};
+        write!(f, "{}", tokens)
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct Enum {
     pub name: String,
@@ -68,6 +75,13 @@ impl ToTokens for Enum {
                 }
             };
         tokens.append(toks)
+    }
+}
+
+impl fmt::Display for Enum {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let tokens = quote!{#self};
+        write!(f, "{}", tokens)
     }
 }
 
@@ -249,7 +263,7 @@ impl fmt::Display for CfgAttr {
     }
 }
 
-pub fn rust_format(t: &Tokens) -> Result<String> {
+pub fn rust_format(code: &str) -> Result<String> {
     use rustfmt::{Input, format_input};
     use std::fs::File;
     use tempdir::TempDir;
@@ -261,9 +275,8 @@ pub fn rust_format(t: &Tokens) -> Result<String> {
     // FIXME workaround is necessary until rustfmt works programmatically
     {
         let mut tmp = File::create(&tmppath)?;
-        tmp.write_all(t.as_str().as_bytes())?;
+        tmp.write_all(code.as_bytes())?;
     }
-
     let input = Input::File((&tmppath).into());
     let mut fakebuf = Vec::new(); // pretty weird that this is necessary.. but it is
 
@@ -275,7 +288,7 @@ pub fn rust_format(t: &Tokens) -> Result<String> {
     let mut tmp = File::open(&tmppath)?;
     let mut buf = String::new();
     tmp.read_to_string(&mut buf)?;
-    if buf == t.as_str() {
+    if buf == code {
         bail!("Syntax error detected")
     }
     Ok(buf)
@@ -302,8 +315,7 @@ mod tests {
                                 FieldAttr::SerdeDefault])]
         };
 
-        let tokens = quote!{#s};
-        let pretty = rust_format(&tokens).unwrap();
+        let pretty = rust_format(&s.to_string()).unwrap();
         let expect = r#"
 #[derive(Clone, Debug)]
 #[cfg(test, target_os = "linux")]
@@ -335,9 +347,7 @@ pub struct MyStruct {
                 Variant::new("Variant2".into(), Some("VType".into()), Default::default())
                 ]
         };
-        let tokens = quote!{#e};
-        println!("{}", tokens);
-        let pretty = rust_format(&tokens).expect("Format failed");
+        let pretty = rust_format(&e.to_string()).unwrap();
         let expect = r#"
 #[derive(Clone, Eq, MyDerive)]
 #[my_custom_attribute]
