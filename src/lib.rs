@@ -3,11 +3,15 @@ extern crate error_chain;
 #[macro_use]
 extern crate quote;
 extern crate rustfmt;
+extern crate tempdir;
 
 use quote::{Tokens, ToTokens, Ident};
 
+use std::fmt;
+
 use errors::*;
 
+#[allow(unused_doc_comment)]
 mod errors {
     error_chain!{
        foreign_links {
@@ -42,11 +46,36 @@ impl ToTokens for Struct {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct Enum {
+    pub name: String,
+    pub vis: Visibility,
+    pub attrs: Attributes,
+    pub variants: Vec<Variant>
+}
+
+impl ToTokens for Enum {
+    fn to_tokens(&self, tokens: &mut Tokens) {
+        let name = Ident::from(&*self.name);
+        let vis = self.vis;
+        let attrs = &self.attrs;
+        let variants = &self.variants;
+        let toks =
+            quote! {
+                #attrs
+                #vis enum #name {
+                    #(#variants),*
+                }
+            };
+        tokens.append(toks)
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Attributes {
-    derive: Vec<DeriveAttr>,
-    cfg: Vec<CfgAttr>,
-    custom: Vec<String>,
+    pub derive: Vec<DeriveAttr>,
+    pub cfg: Vec<CfgAttr>,
+    pub custom: Vec<String>,
 }
 
 impl ToTokens for Attributes {
@@ -63,6 +92,12 @@ impl ToTokens for Attributes {
                 #[cfg(#(#configs),*)]
             });
         }
+        if self.custom.len() > 0 {
+            let customs = self.custom.iter().map(|d| Ident::from(d.to_string()));
+            tokens.append(quote! {
+                #[#(#customs),*]
+            });
+        }
     }
 }
 
@@ -73,6 +108,12 @@ pub struct Field {
     pub attrs: Vec<FieldAttr>  // TODO separate field attrs?
 }
 
+impl Field {
+    pub fn new(name: String, typ: String, attrs: Vec<FieldAttr>) -> Field {
+        Field {name, typ, attrs}
+    }
+}
+
 impl ToTokens for Field {
     fn to_tokens(&self, tokens: &mut Tokens) {
         let name = Ident::from(&*self.name);
@@ -80,13 +121,46 @@ impl ToTokens for Field {
         let typ = Ident::from(&*self.typ);
         let tok =
             quote! {
-                #attrs
+                #(#attrs)*
                 #name: #typ
             };
         tokens.append(tok);
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct Variant {
+    pub name: String,
+    pub typ: Option<String>,
+    pub attrs: Vec<FieldAttr>  // TODO separate field attrs?
+}
+
+impl Variant {
+    pub fn new(name: String, typ: Option<String>, attrs: Vec<FieldAttr>) -> Variant {
+        Variant{ name, typ, attrs}
+    }
+}
+
+impl ToTokens for Variant {
+    fn to_tokens(&self, tokens: &mut Tokens) {
+        let name = Ident::from(&*self.name);
+        let attrs = &self.attrs;
+        let tok = match self.typ {
+            Some(ref t) => {
+                let typ = Ident::from(t.as_str());
+                quote! {
+                    #(#attrs)* #name(#typ)
+                }
+            }
+            None => {
+                quote! {
+                    #(#attrs)* #name
+                }
+            }
+        };
+        tokens.append(tok);
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Visibility {
@@ -111,50 +185,34 @@ impl Default for Visibility {
     }
 }
 
-pub fn rust_format(t: &Tokens) -> Result<String> {
-    use rustfmt::*;
-    use std::fs::File;
-    use std::io::prelude::*;
-
-    // FIXME workaround is necessary until rustfmt works programmatically
-    let tmppath = "/tmp/rustfmt.rs"; // TODO use tempdir
-    //let tmppath = "/home/alex/scratch/stubgen/src/gen.rs"; // TODO use tempdir
-    {
-        let mut tmp = File::create(tmppath)?;
-        tmp.write_all(t.as_str().as_bytes())?;
-    }
-
-    let input = Input::File(tmppath.into());
-    let mut fakebuf = Vec::new(); // pretty weird that this is necessary.. but it is
-
-    match format_input(input, &Default::default(), Some(&mut fakebuf)) {
-        Ok((_summmary, _filemap, _report)) => {}
-        Err((e, _summary)) => Err(e)?,
-    }
-
-    let mut tmp = File::open(tmppath)?;
-    let mut buf = String::new();
-    tmp.read_to_string(&mut buf)?;
-    Ok(buf)
-}
-
 #[derive(Clone, Debug)]
-enum FieldAttr {
-    SerdeRename(String),
+pub enum FieldAttr {
     SerdeDefault,
-    Custom(String),
-}
-
-#[derive(Clone, Debug)]
-enum VariantAttr {
     SerdeRename(String),
-    SerdeSkipSerialize,
-    SerdeSkipDeserialize,
     Custom(String),
 }
 
+impl ToTokens for FieldAttr {
+    fn to_tokens(&self, tokens: &mut Tokens) {
+        use FieldAttr::*;
+        match *self {
+            SerdeDefault => tokens.append(format!("#[serde(default)]")),
+            SerdeRename(ref name) => tokens.append(format!("#[serde(rename = \"{}\")]", name)),
+            Custom(ref name) => tokens.append(name)
+        }
+    }
+}
+
+// #[derive(Clone, Debug)]
+// enum VariantAttr {
+//     SerdeRename(String),
+//     SerdeSkipSerialize,
+//     SerdeSkipDeserialize,
+//     Custom(String),
+// }
+
 #[derive(Clone, Debug)]
-enum DeriveAttr {
+pub enum DeriveAttr {
     Debug,
     Copy,
     Clone,
@@ -164,9 +222,63 @@ enum DeriveAttr {
     Custom(String)
 }
 
-enum CfgAttr {
+impl fmt::Display for DeriveAttr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            DeriveAttr::Custom(ref custom) => write!(f, "{}", custom),
+            ref other => write!(f, "{:?}", other)
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum CfgAttr {
     Test,
-    TargetOs(String)
+    TargetOs(String),
+    Custom(String)
+}
+
+impl fmt::Display for CfgAttr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use CfgAttr::*;
+        match *self {
+            Test => write!(f, "test"),
+            TargetOs(ref target) => write!(f, "target_os = \"{}\"", target),
+            Custom(ref custom) => write!(f, "{}", custom),
+        }
+    }
+}
+
+pub fn rust_format(t: &Tokens) -> Result<String> {
+    use rustfmt::{Input, format_input};
+    use std::fs::File;
+    use tempdir::TempDir;
+    use std::io::prelude::*;
+
+    let tmpdir = TempDir::new("codegen-rustfmt")?;
+    let tmppath = tmpdir.path().join("to_format.rs");
+
+    // FIXME workaround is necessary until rustfmt works programmatically
+    {
+        let mut tmp = File::create(&tmppath)?;
+        tmp.write_all(t.as_str().as_bytes())?;
+    }
+
+    let input = Input::File((&tmppath).into());
+    let mut fakebuf = Vec::new(); // pretty weird that this is necessary.. but it is
+
+    match format_input(input, &Default::default(), Some(&mut fakebuf)) {
+        Ok((_summmary, _filemap, _report)) => {}
+        Err((e, _summary)) => Err(e)?,
+    }
+
+    let mut tmp = File::open(&tmppath)?;
+    let mut buf = String::new();
+    tmp.read_to_string(&mut buf)?;
+    if buf == t.as_str() {
+        bail!("Syntax error detected")
+    }
+    Ok(buf)
 }
 
 #[cfg(test)]
@@ -184,23 +296,56 @@ mod tests {
                 ..Default::default()
             },
             fields: vec![
-                Field {
-                    name: "field1".into(),
-                    typ: "Type1".into(),
-                    attrs: Default::default()
-                },
-                Field {
-                    name: "field2".into(),
-                    typ: "Type2".into(),
-                    attrs: vec![FieldAttr::SerdeRename("Field-2".into())]
-                }
-                ]
+                Field::new("field1".into(), "Type1".into(), Default::default()),
+                Field::new("field2".into(), "Type2".into(),
+                           vec![FieldAttr::SerdeRename("Field-2".into()),
+                                FieldAttr::SerdeDefault])]
         };
 
         let tokens = quote!{#s};
         let pretty = rust_format(&tokens).unwrap();
-        println!("\n{}", pretty);
-        assert!(false);
+        let expect = r#"
+#[derive(Clone, Debug)]
+#[cfg(test, target_os = "linux")]
+pub struct MyStruct {
+    field1: Type1,
+    #[serde(rename = "Field-2")]
+    #[serde(default)]
+    field2: Type2,
+}"#;
+        assert_eq!(pretty.trim(), expect.trim());
+    }
 
+    #[test]
+    fn test_enum() {
+        let e = Enum {
+            name: "MyEnum".into(),
+            vis: Visibility::Crate,
+            attrs: Attributes {
+                derive: vec![DeriveAttr::Clone,
+                             DeriveAttr::Eq,
+                             DeriveAttr::Custom("MyDerive".into())],
+                custom: vec!["my_custom_attribute".into()],
+                ..Default::default()
+            },
+            variants: vec![
+                Variant::new("Variant1".into(), Default::default(), vec![
+                    FieldAttr::SerdeRename("used-to-be-this".into())
+                    ]),
+                Variant::new("Variant2".into(), Some("VType".into()), Default::default())
+                ]
+        };
+        let tokens = quote!{#e};
+        println!("{}", tokens);
+        let pretty = rust_format(&tokens).expect("Format failed");
+        let expect = r#"
+#[derive(Clone, Eq, MyDerive)]
+#[my_custom_attribute]
+pub(crate) enum MyEnum {
+    #[serde(rename = "used-to-be-this")]
+    Variant1,
+    Variant2(VType),
+}"#;
+        assert_eq!(pretty.trim(), expect.trim());
     }
 }
