@@ -10,7 +10,7 @@ extern crate lazy_static;
 use quote::{Tokens, ToTokens, Ident};
 
 use std::fmt;
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 mod keywords;
 
@@ -26,7 +26,7 @@ mod errors {
 }
 
 lazy_static! {
-    static ref RUST_KEYWORDS: HashSet<&'static str> = {
+    static ref RUST_KEYWORDS: BTreeSet<&'static str> = {
         keywords::RUST_KEYWORDS.iter().map(|v| *v).collect()
     };
 }
@@ -208,9 +208,32 @@ impl fmt::Display for Alias {
 
 #[derive(Debug, Clone, Default)]
 pub struct Attributes {
-    pub derive: Vec<Derive>,
-    pub cfg: Vec<Cfg>,
-    pub custom: Vec<String>,
+    derive: BTreeSet<Derive>,
+    cfg: BTreeSet<Cfg>,
+    custom: BTreeSet<String>,
+}
+
+impl Attributes {
+    pub fn derive(mut self, derives: &[Derive]) -> Self {
+        for d in derives {
+            self.derive.insert(d.clone());
+        }
+        self
+    }
+
+    pub fn cfg(mut self, cfgs: &[Cfg]) -> Self {
+        for c in cfgs {
+            self.cfg.insert(c.clone());
+        }
+        self
+    }
+
+    pub fn custom(mut self, customs: &[String]) -> Self {
+        for c in customs {
+            self.custom.insert(c.to_string());
+        }
+        self
+    }
 }
 
 impl ToTokens for Attributes {
@@ -352,7 +375,7 @@ impl ToTokens for FieldAttr {
 //     Custom(String),
 // }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Derive {
     Debug,
     Copy,
@@ -374,7 +397,7 @@ impl fmt::Display for Derive {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Cfg {
     Test,
     TargetOs(String),
@@ -465,11 +488,14 @@ mod tests {
         let my_struct = Struct::new(
             "MyStruct".into(),
             Visibility::Public,
-            Attributes {
-                derive: vec![Clone, Debug],
-                cfg: vec![Test, TargetOs("linux".into())],
-                ..Default::default()
-            },
+            Attributes::default().derive(&[Clone, Debug]).cfg(
+                &[
+                    Test,
+                    TargetOs(
+                        "linux".into(),
+                    ),
+                ],
+            ),
             vec![
                 Field::new("field1".into(), "Type1".into(), Default::default())
                     .unwrap(),
@@ -482,7 +508,7 @@ mod tests {
         ).unwrap();
 
         let pretty = rust_format(&my_struct.to_string()).unwrap();
-        let expect = r#"#[derive(Clone, Debug)]
+        let expect = r#"#[derive(Debug, Clone)]
 #[cfg(test, target_os = "linux")]
 pub struct MyStruct {
     field1: Type1,
@@ -499,11 +525,9 @@ pub struct MyStruct {
         let e = Enum::new(
             "MyEnum".into(),
             Visibility::Crate,
-            Attributes {
-                derive: vec![Clone, Eq, Derive::Custom("MyDerive".into())],
-                custom: vec!["my_custom_attribute".into()],
-                ..Default::default()
-            },
+            Attributes::default()
+                .derive(&[Clone, Eq, Derive::Custom("MyDerive".into())])
+                .custom(&["my_custom_attribute".into()]),
             vec![
                 Variant::new(
                     "Variant1".into(),
