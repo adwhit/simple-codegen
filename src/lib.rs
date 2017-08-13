@@ -4,10 +4,15 @@ extern crate error_chain;
 extern crate quote;
 extern crate rustfmt;
 extern crate tempdir;
+#[macro_use]
+extern crate lazy_static;
 
 use quote::{Tokens, ToTokens, Ident};
 
 use std::fmt;
+use std::collections::HashSet;
+
+mod keywords;
 
 use errors::*;
 
@@ -20,13 +25,35 @@ mod errors {
     }
 }
 
+lazy_static! {
+    static ref RUST_KEYWORDS: HashSet<&'static str> = {
+        keywords::RUST_KEYWORDS.iter().map(|v| *v).collect()
+    };
+}
 
 #[derive(Clone, Default)]
 pub struct Struct {
-    pub name: String,
-    pub vis: Visibility,
-    pub attrs: Attributes,
-    pub fields: Vec<Field>,
+    name: String,
+    vis: Visibility,
+    attrs: Attributes,
+    fields: Vec<Field>,
+}
+
+impl Struct {
+    pub fn new(
+        name: String,
+        vis: Visibility,
+        attrs: Attributes,
+        fields: Vec<Field>,
+    ) -> Result<Struct> {
+        validate_identifier(&name)?;
+        Ok(Struct {
+            name,
+            vis,
+            attrs,
+            fields,
+        })
+    }
 }
 
 impl ToTokens for Struct {
@@ -55,10 +82,27 @@ impl fmt::Display for Struct {
 
 #[derive(Clone, Default)]
 pub struct Enum {
-    pub name: String,
-    pub vis: Visibility,
-    pub attrs: Attributes,
-    pub variants: Vec<Variant>,
+    name: String,
+    vis: Visibility,
+    attrs: Attributes,
+    variants: Vec<Variant>,
+}
+
+impl Enum {
+    pub fn new(
+        name: String,
+        vis: Visibility,
+        attrs: Attributes,
+        variants: Vec<Variant>,
+    ) -> Result<Enum> {
+        validate_identifier(&name)?;
+        Ok(Enum {
+            name,
+            vis,
+            attrs,
+            variants,
+        })
+    }
 }
 
 impl ToTokens for Enum {
@@ -91,6 +135,19 @@ pub struct NewType {
     vis: Visibility,
     attrs: Attributes,
     typ: String,
+}
+
+impl NewType {
+    pub fn new(name: String, vis: Visibility, attrs: Attributes, typ: String) -> Result<NewType> {
+        validate_identifier(&name)?;
+        validate_identifier(&typ)?;
+        Ok(NewType {
+            name,
+            vis,
+            attrs,
+            typ,
+        })
+    }
 }
 
 impl ToTokens for NewType {
@@ -158,8 +215,10 @@ pub struct Field {
 }
 
 impl Field {
-    pub fn new(name: String, typ: String, attrs: Vec<FieldAttr>) -> Field {
-        Field { name, typ, attrs }
+    pub fn new(name: String, typ: String, attrs: Vec<FieldAttr>) -> Result<Field> {
+        validate_identifier(&name)?;
+        validate_identifier(&typ)?;
+        Ok(Field { name, typ, attrs })
     }
 }
 
@@ -179,14 +238,18 @@ impl ToTokens for Field {
 
 #[derive(Clone, Debug)]
 pub struct Variant {
-    pub name: String,
-    pub typ: Option<String>,
-    pub attrs: Vec<FieldAttr>, // TODO separate field attrs?
+    name: String,
+    typ: Option<String>,
+    attrs: Vec<FieldAttr>, // TODO separate field attrs?
 }
 
 impl Variant {
-    pub fn new(name: String, typ: Option<String>, attrs: Vec<FieldAttr>) -> Variant {
-        Variant { name, typ, attrs }
+    pub fn new(name: String, typ: Option<String>, attrs: Vec<FieldAttr>) -> Result<Variant> {
+        validate_identifier(&name)?;
+        if let Some(ref typ) = typ {
+            validate_identifier(typ)?;
+        }
+        Ok(Variant { name, typ, attrs })
     }
 }
 
@@ -300,6 +363,36 @@ impl fmt::Display for Cfg {
     }
 }
 
+fn validate_identifier(ident: &str) -> Result<()> {
+    // This assumes ASCII character set
+    if ident == "_" {
+        bail!("'_' is not a valid item name")
+    }
+    if ident.len() == 0 {
+        bail!("Identifier is empty string")
+    }
+    if RUST_KEYWORDS.contains(ident) {
+        bail!("Identifier '{}' is a Rust keyword", ident)
+    }
+    let mut is_leading_char = true;
+    for (ix, c) in ident.chars().enumerate() {
+        if is_leading_char {
+            match c {
+                'A'...'Z' | 'a'...'z' | '_' => {
+                    is_leading_char = false;
+                }
+                _ => bail!("Identifier has invalid character at index {}: '{}'", ix, c),
+            }
+        } else {
+            match c {
+                'A'...'Z' | 'a'...'z' | '_' | '0'...'9' => {}
+                _ => bail!("Identifier has invalid character at index {}: '{}'", ix, c),
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn rust_format(code: &str) -> Result<String> {
     use rustfmt::{Input, format_input};
     use std::fs::File;
@@ -340,23 +433,24 @@ mod tests {
 
     #[test]
     fn test_struct() {
-        let my_struct = Struct {
-            name: "MyStruct".into(),
-            vis: Visibility::Public,
-            attrs: Attributes {
+        let my_struct = Struct::new(
+            "MyStruct".into(),
+            Visibility::Public,
+            Attributes {
                 derive: vec![Clone, Debug],
                 cfg: vec![Test, TargetOs("linux".into())],
                 ..Default::default()
             },
-            fields: vec![
-                Field::new("field1".into(), "Type1".into(), Default::default()),
+            vec![
+                Field::new("field1".into(), "Type1".into(), Default::default())
+                    .unwrap(),
                 Field::new(
                     "field2".into(),
                     "Type2".into(),
                     vec![SerdeRename("Field-2".into()), SerdeDefault]
-                ),
+                ).unwrap(),
             ],
-        };
+        ).unwrap();
 
         let pretty = rust_format(&my_struct.to_string()).unwrap();
         let expect = r#"#[derive(Clone, Debug)]
@@ -373,23 +467,24 @@ pub struct MyStruct {
 
     #[test]
     fn test_enum() {
-        let e = Enum {
-            name: "MyEnum".into(),
-            vis: Visibility::Crate,
-            attrs: Attributes {
+        let e = Enum::new(
+            "MyEnum".into(),
+            Visibility::Crate,
+            Attributes {
                 derive: vec![Clone, Eq, Derive::Custom("MyDerive".into())],
                 custom: vec!["my_custom_attribute".into()],
                 ..Default::default()
             },
-            variants: vec![
+            vec![
                 Variant::new(
                     "Variant1".into(),
                     Default::default(),
                     vec![FieldAttr::SerdeRename("used-to-be-this".into())]
-                ),
-                Variant::new("Variant2".into(), Some("VType".into()), Default::default()),
+                ).unwrap(),
+                Variant::new("Variant2".into(), Some("VType".into()), Default::default())
+                    .unwrap(),
             ],
-        };
+        ).unwrap();
         let pretty = rust_format(&e.to_string()).unwrap();
         let expect = r#"#[derive(Clone, Eq, MyDerive)]
 #[my_custom_attribute]
@@ -404,14 +499,29 @@ pub(crate) enum MyEnum {
 
     #[test]
     fn test_newtype() {
-        let n = NewType {
-            name: "MyNewType".into(),
-            vis: Visibility::Private,
-            attrs: Default::default(),
-            typ: "MyOldType".into(),
-        };
+        let n = NewType::new(
+            "MyNewType".into(),
+            Visibility::Private,
+            Default::default(),
+            "MyOldType".into(),
+        ).unwrap();
         let pretty = rust_format(&n.to_string()).unwrap();
         let expect = "struct MyNewType(MyOldType);\n";
         assert_eq!(pretty, expect);
+    }
+
+    #[test]
+    fn test_validate_ident() {
+        assert!(validate_identifier("thisIsValid").is_ok());
+        assert!(validate_identifier("_this_also_valid").is_ok());
+        assert!(validate_identifier("_type").is_ok());
+        assert!(validate_identifier("T343434234").is_ok());
+
+        assert!(validate_identifier("_").is_err());
+        assert!(validate_identifier("@").is_err());
+        assert!(validate_identifier("contains space").is_err());
+        assert!(validate_identifier("contains££££symbol").is_err());
+        assert!(validate_identifier("type").is_err());
+        assert!(validate_identifier("3_invalid").is_err());
     }
 }
