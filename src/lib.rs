@@ -171,11 +171,40 @@ impl fmt::Display for NewType {
     }
 }
 
-// #[derive(Clone, Default)]
-// pub struct Alias {
-//     name: String,
-//     typ: String
-// }
+#[derive(Clone, Default)]
+pub struct Alias {
+    name: String,
+    vis: Visibility,
+    typ: String,
+}
+
+impl Alias {
+    pub fn new(name: String, vis: Visibility, typ: String) -> Result<Alias> {
+        validate_identifier(&name)?;
+        validate_identifier(&typ)?;
+        Ok(Alias { name, vis, typ })
+    }
+}
+
+impl ToTokens for Alias {
+    fn to_tokens(&self, tokens: &mut Tokens) {
+        let name = Ident::from(&*self.name);
+        let vis = self.vis;
+        let typ = Ident::from(&*self.typ);
+        let toks =
+            quote! {
+                #vis type #name = #typ;
+            };
+        tokens.append(toks);
+    }
+}
+
+impl fmt::Display for Alias {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let tokens = quote!{#self};
+        write!(f, "{}", tokens)
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct Attributes {
@@ -507,6 +536,14 @@ pub(crate) enum MyEnum {
         ).unwrap();
         let pretty = rust_format(&n.to_string()).unwrap();
         let expect = "struct MyNewType(MyOldType);\n";
+        assert_eq!(pretty, expect);
+    }
+
+    #[test]
+    fn test_alias() {
+        let a = Alias::new("MyAlias".into(), Visibility::Crate, "MyAliasedType".into()).unwrap();
+        let pretty = rust_format(&a.to_string()).unwrap();
+        let expect = "pub(crate) type MyAlias = MyAliasedType;\n";
         assert_eq!(pretty, expect);
     }
 
