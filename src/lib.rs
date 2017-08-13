@@ -13,8 +13,10 @@ use std::fmt;
 use std::collections::BTreeSet;
 
 mod keywords;
+pub mod utils;
 
 use errors::*;
+use utils::*;
 
 #[allow(unused_doc_comment)]
 mod errors {
@@ -272,6 +274,17 @@ impl Field {
         validate_identifier(&typ)?;
         Ok(Field { name, typ, attrs })
     }
+
+    // TODO do we want this kind of higher-level functionality in this crate?
+    // pub fn new_with_serde_rename(name: String, typ: String, attrs: Vec<FieldAttr>) -> Result<Field> {
+    //     let name = match make_valid_identifier(name)? {
+    //         Cow::Borrowed(n) => n.to_string(),
+    //         Cow::Owned(n) => {
+    //             attrs.push(FieldAttr::SerdeRename(name));
+    //             n
+    //         }
+    //     };
+    // }
 }
 
 impl ToTokens for Field {
@@ -414,68 +427,6 @@ impl fmt::Display for Cfg {
         }
     }
 }
-
-fn validate_identifier(ident: &str) -> Result<()> {
-    // This assumes ASCII character set
-    if ident == "_" {
-        bail!("'_' is not a valid item name")
-    }
-    if ident.len() == 0 {
-        bail!("Identifier is empty string")
-    }
-    if RUST_KEYWORDS.contains(ident) {
-        bail!("Identifier '{}' is a Rust keyword", ident)
-    }
-    let mut is_leading_char = true;
-    for (ix, c) in ident.chars().enumerate() {
-        if is_leading_char {
-            match c {
-                'A'...'Z' | 'a'...'z' | '_' => {
-                    is_leading_char = false;
-                }
-                _ => bail!("Identifier has invalid character at index {}: '{}'", ix, c),
-            }
-        } else {
-            match c {
-                'A'...'Z' | 'a'...'z' | '_' | '0'...'9' => {}
-                _ => bail!("Identifier has invalid character at index {}: '{}'", ix, c),
-            }
-        }
-    }
-    Ok(())
-}
-
-pub fn rust_format(code: &str) -> Result<String> {
-    use rustfmt::{Input, format_input};
-    use std::fs::File;
-    use tempdir::TempDir;
-    use std::io::prelude::*;
-
-    let tmpdir = TempDir::new("codegen-rustfmt")?;
-    let tmppath = tmpdir.path().join("to_format.rs");
-
-    // FIXME workaround is necessary until rustfmt works programmatically
-    {
-        let mut tmp = File::create(&tmppath)?;
-        tmp.write_all(code.as_bytes())?;
-    }
-    let input = Input::File((&tmppath).into());
-    let mut fakebuf = Vec::new(); // pretty weird that this is necessary.. but it is
-
-    match format_input(input, &Default::default(), Some(&mut fakebuf)) {
-        Ok((_summmary, _filemap, _report)) => {}
-        Err((e, _summary)) => Err(e)?,
-    }
-
-    let mut tmp = File::open(&tmppath)?;
-    let mut buf = String::new();
-    tmp.read_to_string(&mut buf)?;
-    if buf == code {
-        bail!("Syntax error detected")
-    }
-    Ok(buf)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

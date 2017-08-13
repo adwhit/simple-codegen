@@ -1,7 +1,8 @@
 [package]
 authors = ["Alex Whitney <adwhit@fastmail.com>"]
-name = "simple_codegen"
+name = "simple-codegen"
 version = "0.1.0"
+
 [dependencies]
 error-chain = "0.10.0"
 lazy_static = "0.2.8"
