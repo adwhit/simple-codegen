@@ -427,6 +427,7 @@ impl fmt::Display for Cfg {
         }
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -522,18 +523,4 @@ pub(crate) enum MyEnum {
         assert_eq!(pretty, expect);
     }
 
-    #[test]
-    fn test_validate_ident() {
-        assert!(validate_identifier("thisIsValid").is_ok());
-        assert!(validate_identifier("_this_also_valid").is_ok());
-        assert!(validate_identifier("_type").is_ok());
-        assert!(validate_identifier("T343434234").is_ok());
-
-        assert!(validate_identifier("_").is_err());
-        assert!(validate_identifier("@").is_err());
-        assert!(validate_identifier("contains space").is_err());
-        assert!(validate_identifier("contains££££symbol").is_err());
-        assert!(validate_identifier("type").is_err());
-        assert!(validate_identifier("3_invalid").is_err());
-    }
 }

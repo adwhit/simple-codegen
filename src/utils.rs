@@ -99,3 +99,44 @@ pub fn rust_format(code: &str) -> Result<String> {
     }
     Ok(buf)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_ident() {
+        assert!(validate_identifier("thisIsValid").is_ok());
+        assert!(validate_identifier("_this_also_valid").is_ok());
+        assert!(validate_identifier("_type").is_ok());
+        assert!(validate_identifier("T343434234").is_ok());
+
+        assert!(validate_identifier("_").is_err());
+        assert!(validate_identifier("@").is_err());
+        assert!(validate_identifier("contains space").is_err());
+        assert!(validate_identifier("contains££££symbol").is_err());
+        assert!(validate_identifier("type").is_err());
+        assert!(validate_identifier("3_invalid").is_err());
+    }
+
+    #[test]
+    fn test_make_valid_identifier() {
+        let id1 = "1234_abcd".into();
+        assert_eq!(make_valid_identifier(id1).unwrap(), "_abcd");
+        let id2 = "$1234Abcd".into();
+        assert_eq!(make_valid_identifier(id2).unwrap(), "Abcd");
+        let id3 = "$@1234\\|./".into();
+        assert!(make_valid_identifier(id3).is_err());
+        let id4 = "1234_".into();
+        assert!(make_valid_identifier(id4).is_err());
+        let id5 = "".into();
+        assert!(make_valid_identifier(id5).is_err());
+        let id6 = "_".into();
+        assert!(make_valid_identifier(id6).is_err());
+        let id7 = "type".into();
+        assert_eq!(make_valid_identifier(id7).unwrap(), "type_");
+        let id8 = "this 123".into();
+        assert_eq!(make_valid_identifier(id8).unwrap(), "this123");
+    }
+
+}
