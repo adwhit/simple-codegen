@@ -19,7 +19,7 @@ use errors::*;
 use utils::*;
 
 #[allow(unused_doc_comment)]
-mod errors {
+pub mod errors {
     error_chain!{
        foreign_links {
            Io(::std::io::Error);
@@ -33,7 +33,7 @@ lazy_static! {
     };
 }
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Struct {
     name: String,
     vis: Visibility,
@@ -82,7 +82,7 @@ impl fmt::Display for Struct {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Enum {
     name: String,
     vis: Visibility,
@@ -131,7 +131,7 @@ impl fmt::Display for Enum {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewType {
     name: String,
     vis: Visibility,
@@ -173,7 +173,7 @@ impl fmt::Display for NewType {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Alias {
     name: String,
     vis: Visibility,
@@ -208,7 +208,7 @@ impl fmt::Display for Alias {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Attributes {
     derive: BTreeSet<Derive>,
     cfg: BTreeSet<Cfg>,
@@ -261,7 +261,7 @@ impl ToTokens for Attributes {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Field {
     pub name: String,
     pub typ: String,
@@ -301,7 +301,7 @@ impl ToTokens for Field {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Variant {
     name: String,
     typ: Option<String>,
@@ -339,7 +339,7 @@ impl ToTokens for Variant {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Visibility {
     Private,
     Public,
@@ -362,7 +362,7 @@ impl Default for Visibility {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FieldAttr {
     SerdeDefault,
     SerdeRename(String),
