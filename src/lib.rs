@@ -1,13 +1,11 @@
 #[macro_use]
 extern crate error_chain;
-#[macro_use]
-extern crate quote;
 extern crate rustfmt;
 extern crate tempdir;
 #[macro_use]
 extern crate lazy_static;
-
-use quote::{Tokens, ToTokens, Ident};
+#[macro_use]
+extern crate derive_new;
 
 use std::fmt;
 use std::collections::BTreeSet;
@@ -17,7 +15,6 @@ pub mod utils;
 pub mod typebuilder;
 
 use errors::*;
-use utils::*;
 use typebuilder::Type;
 
 #[allow(unused_doc_comment)]
@@ -35,177 +32,86 @@ lazy_static! {
     };
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+/// Wrapper around String which guarantees that
+/// the value can be used as a Rust identifier
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Id(String);
+
+impl Id {
+    pub fn new<I: Into<String>>(ident: I) -> Result<Id> {
+        let ident: String = ident.into();
+        utils::validate_identifier(&ident)?;
+        Ok(Id(ident))
+    }
+}
+
+impl std::ops::Deref for Id {
+    type Target = str;
+    fn deref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for Id {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, new)]
 pub struct Struct {
-    name: String,
+    name: Id,
     vis: Visibility,
     attrs: Attributes,
     fields: Vec<Field>,
 }
 
-impl Struct {
-    pub fn new(
-        name: String,
-        vis: Visibility,
-        attrs: Attributes,
-        fields: Vec<Field>,
-    ) -> Result<Struct> {
-        validate_identifier(&name)?;
-        Ok(Struct {
-            name,
-            vis,
-            attrs,
-            fields,
-        })
-    }
-}
-
-impl ToTokens for Struct {
-    fn to_tokens(&self, tokens: &mut Tokens) {
-        let name = Ident::from(&*self.name);
-        let vis = self.vis;
-        let attrs = &self.attrs;
-        let fields = &self.fields;
-        let toks =
-            quote! {
-            #attrs
-            #vis struct #name {
-                #(#fields),*
-            }
-        };
-        tokens.append(toks)
-    }
-}
-
 impl fmt::Display for Struct {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let tokens = quote!{#self};
-        write!(f, "{}", tokens)
+        let fields = render_delimited(&self.fields, ", ");
+        write!(f, "{} {} struct {} {{ {} }}", self.attrs, self.vis, self.name, fields)
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, new)]
 pub struct Enum {
-    name: String,
+    name: Id,
     vis: Visibility,
     attrs: Attributes,
     variants: Vec<Variant>,
 }
 
-impl Enum {
-    pub fn new(
-        name: String,
-        vis: Visibility,
-        attrs: Attributes,
-        variants: Vec<Variant>,
-    ) -> Result<Enum> {
-        validate_identifier(&name)?;
-        Ok(Enum {
-            name,
-            vis,
-            attrs,
-            variants,
-        })
-    }
-}
-
-impl ToTokens for Enum {
-    fn to_tokens(&self, tokens: &mut Tokens) {
-        let name = Ident::from(&*self.name);
-        let vis = self.vis;
-        let attrs = &self.attrs;
-        let variants = &self.variants;
-        let toks =
-            quote! {
-                #attrs
-                #vis enum #name {
-                    #(#variants),*
-                }
-            };
-        tokens.append(toks)
-    }
-}
-
 impl fmt::Display for Enum {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let tokens = quote!{#self};
-        write!(f, "{}", tokens)
+        let variants = render_delimited(&self.variants, ", ");
+        write!(f, "{} {} enum {} {{ {} }}", self.attrs, self.vis, self.name, variants)
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, new)]
 pub struct NewType {
-    name: String,
+    name: Id,
     vis: Visibility,
     attrs: Attributes,
     typ: Type,
 }
 
-impl NewType {
-    pub fn new(name: String, vis: Visibility, attrs: Attributes, typ: Type) -> Result<NewType> {
-        validate_identifier(&name)?;
-        Ok(NewType {
-            name,
-            vis,
-            attrs,
-            typ,
-        })
-    }
-}
-
-impl ToTokens for NewType {
-    fn to_tokens(&self, tokens: &mut Tokens) {
-        let name = Ident::from(&*self.name);
-        let typ = Ident::from(self.typ.to_string());
-        let attrs = &self.attrs;
-        let vis = self.vis;
-        let toks =
-            quote! {
-            #attrs #vis struct #name(#typ);
-        };
-        tokens.append(toks);
-    }
-}
-
 impl fmt::Display for NewType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let tokens = quote!{#self};
-        write!(f, "{}", tokens)
+        write!(f, "{} {} struct {}({});", self.attrs, self.vis, self.name, self.typ)
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, new)]
 pub struct Alias {
-    name: String,
+    name: Id,
     vis: Visibility,
-    typ: String,
-}
-
-impl Alias {
-    pub fn new(name: String, vis: Visibility, typ: String) -> Result<Alias> {
-        validate_identifier(&name)?;
-        validate_identifier(&typ)?;
-        Ok(Alias { name, vis, typ })
-    }
-}
-
-impl ToTokens for Alias {
-    fn to_tokens(&self, tokens: &mut Tokens) {
-        let name = Ident::from(&*self.name);
-        let vis = self.vis;
-        let typ = Ident::from(&*self.typ);
-        let toks =
-            quote! {
-                #vis type #name = #typ;
-            };
-        tokens.append(toks);
-    }
+    typ: Type,
 }
 
 impl fmt::Display for Alias {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let tokens = quote!{#self};
-        write!(f, "{}", tokens)
+        write!(f, "{} type {} = {};",self.vis, self.name, self.typ)
     }
 }
 
@@ -239,102 +145,61 @@ impl Attributes {
     }
 }
 
-impl ToTokens for Attributes {
-    fn to_tokens(&self, tokens: &mut Tokens) {
+impl fmt::Display for Attributes {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.derive.len() > 0 {
-            let derives = self.derive.iter().map(|d| Ident::from(d.to_string()));
-            tokens.append(quote! {
-                #[derive(#(#derives),*)]
-            });
+            let derives = render_delimited(&self.derive.iter().collect::<Vec<_>>(), ", ");
+            write!(f, "#[derive({})]", derives)?;
         }
         if self.cfg.len() > 0 {
-            let configs = self.cfg.iter().map(|d| Ident::from(d.to_string()));
-            tokens.append(quote! {
-                #[cfg(#(#configs),*)]
-            });
+            let cfgs = render_delimited(&self.cfg.iter().collect::<Vec<_>>(), ", ");
+            write!(f, "#[cfg({})]", cfgs)?;
         }
         if self.custom.len() > 0 {
-            let customs = self.custom.iter().map(|d| Ident::from(d.to_string()));
-            tokens.append(quote! {
-                #[#(#customs),*]
-            });
+            let customs = render_delimited(&self.custom.iter().collect::<Vec<_>>(), ", ");
+            write!(f, "#[{}]", customs)?;
         }
+        Ok(())
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, new)]
 pub struct Field {
-    pub name: String,
+    pub name: Id,
     pub typ: Type,
     pub attrs: Vec<FieldAttr>, // TODO separate field attrs?
 }
 
-impl Field {
-    pub fn new(name: String, typ: String, attrs: Vec<FieldAttr>) -> Result<Field> {
-        validate_identifier(&name)?;
-        let typ = Type::named(typ)?;
-        Ok(Field { name, typ, attrs })
-    }
-
-    // TODO do we want this kind of higher-level functionality in this crate?
-    // pub fn new_with_serde_rename(name: String, typ: String, attrs: Vec<FieldAttr>) -> Result<Field> {
-    //     let name = match make_valid_identifier(name)? {
-    //         Cow::Borrowed(n) => n.to_string(),
-    //         Cow::Owned(n) => {
-    //             attrs.push(FieldAttr::SerdeRename(name));
-    //             n
-    //         }
-    //     };
-    // }
-}
-
-impl ToTokens for Field {
-    fn to_tokens(&self, tokens: &mut Tokens) {
-        let name = Ident::from(&*self.name);
-        let attrs = &self.attrs;
-        let typ = Ident::from(&*self.typ.to_string());
-        let tok =
-            quote! {
-                #(#attrs)*
-                #name: #typ
-            };
-        tokens.append(tok);
+impl fmt::Display for Field {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let attrs = render_delimited(&self.attrs, " ");
+        write!(f, "{} {}:{}", attrs, self.name, self.typ)
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, new)]
 pub struct Variant {
-    name: String,
+    name: Id,
     typ: Option<Type>,
     attrs: Vec<FieldAttr>, // TODO separate field attrs?
 }
 
-impl Variant {
-    pub fn new(name: String, typ: Option<Type>, attrs: Vec<FieldAttr>) -> Result<Variant> {
-        validate_identifier(&name)?;
-        Ok(Variant { name, typ, attrs })
+impl fmt::Display for Variant {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let attrs = render_delimited(&self.attrs, ", ");
+        match self.typ {
+            Some(ref t) => {
+                write!(f, "{} {}({})", attrs, self.name, t)
+            }
+            None => {
+                write!(f, "{} {}", attrs, self.name)
+            }
+        }
     }
 }
 
-impl ToTokens for Variant {
-    fn to_tokens(&self, tokens: &mut Tokens) {
-        let name = Ident::from(&*self.name);
-        let attrs = &self.attrs;
-        let tok = match self.typ {
-            Some(ref t) => {
-                let typ = Ident::from(t.to_string());
-                quote! {
-                    #(#attrs)* #name(#typ)
-                }
-            }
-            None => {
-                quote! {
-                    #(#attrs)* #name
-                }
-            }
-        };
-        tokens.append(tok);
-    }
+fn render_delimited<T: fmt::Display>(items: &[T], delimiter: &str) -> String {
+    items.iter().map(|item| format!("{}", item)).collect::<Vec<String>>().join(delimiter).to_string()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -344,12 +209,12 @@ pub enum Visibility {
     Crate,
 }
 
-impl ToTokens for Visibility {
-    fn to_tokens(&self, tokens: &mut Tokens) {
+impl fmt::Display for Visibility {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Visibility::Private => {}
-            Visibility::Public => tokens.append("pub"),
-            Visibility::Crate => tokens.append("pub(crate) "),
+            Visibility::Private => Ok(()),
+            Visibility::Public => write!(f, "pub "),
+            Visibility::Crate => write!(f, "pub(crate) "),
         }
     }
 }
@@ -367,13 +232,13 @@ pub enum FieldAttr {
     Custom(String),
 }
 
-impl ToTokens for FieldAttr {
-    fn to_tokens(&self, tokens: &mut Tokens) {
+impl fmt::Display for FieldAttr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use FieldAttr::*;
         match *self {
-            SerdeDefault => tokens.append(format!("#[serde(default)]")),
-            SerdeRename(ref name) => tokens.append(format!("#[serde(rename = \"{}\")]", name)),
-            Custom(ref name) => tokens.append(name),
+            SerdeDefault => write!(f, "#[serde(default)]"),
+            SerdeRename(ref name) => write!(f, "#[serde(rename = \"{}\")]", name),
+            Custom(ref name) => write!(f, "{}", name)
         }
     }
 }
@@ -432,11 +297,12 @@ mod tests {
     use Derive::*;
     use Cfg::*;
     use FieldAttr::*;
+    use utils::rust_format;
 
     #[test]
     fn test_struct() {
         let my_struct = Struct::new(
-            "MyStruct".into(),
+            Id::new("MyStruct").unwrap(),
             Visibility::Public,
             Attributes::default().derive(&[Clone, Debug]).cfg(
                 &[
@@ -447,15 +313,18 @@ mod tests {
                 ],
             ),
             vec![
-                Field::new("field1".into(), "Type1".into(), Default::default())
-                    .unwrap(),
                 Field::new(
-                    "field2".into(),
-                    "Type2".into(),
+                    Id::new("field1").unwrap(),
+                    Type::named("Type1").unwrap(),
+                    Default::default()
+                ),
+                Field::new(
+                    Id::new("field2").unwrap(),
+                    Type::named("Type2").unwrap(),
                     vec![SerdeRename("Field-2".into()), SerdeDefault]
-                ).unwrap(),
+                )
             ],
-        ).unwrap();
+        );
 
         let pretty = rust_format(&my_struct.to_string()).unwrap();
         let expect = r#"#[derive(Debug, Clone)]
@@ -473,24 +342,24 @@ pub struct MyStruct {
     #[test]
     fn test_enum() {
         let e = Enum::new(
-            "MyEnum".into(),
+            Id::new("MyEnum").unwrap(),
             Visibility::Crate,
             Attributes::default()
                 .derive(&[Clone, Eq, Derive::Custom("MyDerive".into())])
                 .custom(&["my_custom_attribute".into()]),
             vec![
                 Variant::new(
-                    "Variant1".into(),
+                    Id::new("Variant1").unwrap(),
                     Default::default(),
                     vec![FieldAttr::SerdeRename("used-to-be-this".into())]
-                ).unwrap(),
+                ),
                 Variant::new(
-                    "Variant2".into(),
-                    Some(Type::named("VType".into()).unwrap()),
+                    Id::new("Variant2").unwrap(),
+                    Some(Type::named("VType").unwrap()),
                     Default::default()
-                ).unwrap(),
+                )
             ],
-        ).unwrap();
+        );
         let pretty = rust_format(&e.to_string()).unwrap();
         let expect = r#"#[derive(Clone, Eq, MyDerive)]
 #[my_custom_attribute]
@@ -506,11 +375,11 @@ pub(crate) enum MyEnum {
     #[test]
     fn test_newtype() {
         let n = NewType::new(
-            "MyNewType".into(),
+            Id::new("MyNewType").unwrap(),
             Visibility::Private,
             Default::default(),
-            Type::named("MyOldType".into()).unwrap(),
-        ).unwrap();
+            Type::named("MyOldType").unwrap(),
+        );
         let pretty = rust_format(&n.to_string()).unwrap();
         let expect = "struct MyNewType(MyOldType);\n";
         assert_eq!(pretty, expect);
@@ -518,7 +387,10 @@ pub(crate) enum MyEnum {
 
     #[test]
     fn test_alias() {
-        let a = Alias::new("MyAlias".into(), Visibility::Crate, "MyAliasedType".into()).unwrap();
+        let a = Alias::new(
+            Id::new("MyAlias").unwrap(),
+            Visibility::Crate,
+            Type::named("MyAliasedType").unwrap());
         let pretty = rust_format(&a.to_string()).unwrap();
         let expect = "pub(crate) type MyAlias = MyAliasedType;\n";
         assert_eq!(pretty, expect);

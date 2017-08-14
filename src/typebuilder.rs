@@ -1,23 +1,7 @@
 use std::fmt;
 use errors::*;
-use utils;
+use Id;
 
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Id(String);
-
-impl Id {
-    pub fn new(ident: String) -> Result<Id> {
-        utils::validate_identifier(&ident)?;
-        Ok(Id(ident))
-    }
-}
-
-impl fmt::Display for Id {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
@@ -31,7 +15,7 @@ pub enum Type {
 }
 
 impl Type {
-    pub fn named(name: String) -> Result<Type> {
+    pub fn named<I: Into<String>>(name: I) -> Result<Type> {
         Ok(Type::Named(Id::new(name)?))
     }
 
@@ -91,7 +75,7 @@ mod tests {
     #[test]
     fn test_type_builder() {
         let typ = Type::Box(Box::new(Type::Result(
-            Box::new(Type::Named(Id::new("ResultLeft".into()).unwrap())),
+            Box::new(Type::Named(Id::new("ResultLeft").unwrap())),
             Box::new(Type::Vec(Box::new(Type::Option(Box::new(
                 Type::Ref(Box::new(Type::Primitive(Primitive::String))),
             ))))),
