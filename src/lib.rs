@@ -12,10 +12,10 @@ use std::collections::BTreeSet;
 
 mod keywords;
 pub mod utils;
-pub mod typebuilder;
+mod typebuilder;
 
 use errors::*;
-use typebuilder::Type;
+pub use typebuilder::{Type, Primitive};
 
 #[allow(unused_doc_comment)]
 pub mod errors {
@@ -69,7 +69,14 @@ pub struct Struct {
 impl fmt::Display for Struct {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let fields = render_delimited(&self.fields, ", ");
-        write!(f, "{} {} struct {} {{ {} }}", self.attrs, self.vis, self.name, fields)
+        write!(
+            f,
+            "{} {} struct {} {{ {} }}",
+            self.attrs,
+            self.vis,
+            self.name,
+            fields
+        )
     }
 }
 
@@ -84,7 +91,14 @@ pub struct Enum {
 impl fmt::Display for Enum {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let variants = render_delimited(&self.variants, ", ");
-        write!(f, "{} {} enum {} {{ {} }}", self.attrs, self.vis, self.name, variants)
+        write!(
+            f,
+            "{} {} enum {} {{ {} }}",
+            self.attrs,
+            self.vis,
+            self.name,
+            variants
+        )
     }
 }
 
@@ -98,7 +112,14 @@ pub struct NewType {
 
 impl fmt::Display for NewType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} {} struct {}({});", self.attrs, self.vis, self.name, self.typ)
+        write!(
+            f,
+            "{} {} struct {}({});",
+            self.attrs,
+            self.vis,
+            self.name,
+            self.typ
+        )
     }
 }
 
@@ -111,7 +132,7 @@ pub struct Alias {
 
 impl fmt::Display for Alias {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} type {} = {};",self.vis, self.name, self.typ)
+        write!(f, "{} type {} = {};", self.vis, self.name, self.typ)
     }
 }
 
@@ -188,18 +209,19 @@ impl fmt::Display for Variant {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let attrs = render_delimited(&self.attrs, ", ");
         match self.typ {
-            Some(ref t) => {
-                write!(f, "{} {}({})", attrs, self.name, t)
-            }
-            None => {
-                write!(f, "{} {}", attrs, self.name)
-            }
+            Some(ref t) => write!(f, "{} {}({})", attrs, self.name, t),
+            None => write!(f, "{} {}", attrs, self.name),
         }
     }
 }
 
 fn render_delimited<T: fmt::Display>(items: &[T], delimiter: &str) -> String {
-    items.iter().map(|item| format!("{}", item)).collect::<Vec<String>>().join(delimiter).to_string()
+    items
+        .iter()
+        .map(|item| format!("{}", item))
+        .collect::<Vec<String>>()
+        .join(delimiter)
+        .to_string()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -238,7 +260,7 @@ impl fmt::Display for FieldAttr {
         match *self {
             SerdeDefault => write!(f, "#[serde(default)]"),
             SerdeRename(ref name) => write!(f, "#[serde(rename = \"{}\")]", name),
-            Custom(ref name) => write!(f, "{}", name)
+            Custom(ref name) => write!(f, "{}", name),
         }
     }
 }
@@ -322,7 +344,7 @@ mod tests {
                     Id::new("field2").unwrap(),
                     Type::named("Type2").unwrap(),
                     vec![SerdeRename("Field-2".into()), SerdeDefault]
-                )
+                ),
             ],
         );
 
@@ -357,7 +379,7 @@ pub struct MyStruct {
                     Id::new("Variant2").unwrap(),
                     Some(Type::named("VType").unwrap()),
                     Default::default()
-                )
+                ),
             ],
         );
         let pretty = rust_format(&e.to_string()).unwrap();
@@ -390,7 +412,8 @@ pub(crate) enum MyEnum {
         let a = Alias::new(
             Id::new("MyAlias").unwrap(),
             Visibility::Crate,
-            Type::named("MyAliasedType").unwrap());
+            Type::named("MyAliasedType").unwrap(),
+        );
         let pretty = rust_format(&a.to_string()).unwrap();
         let expect = "pub(crate) type MyAlias = MyAliasedType;\n";
         assert_eq!(pretty, expect);

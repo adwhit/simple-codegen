@@ -39,12 +39,13 @@ impl fmt::Display for Type {
     }
 }
 
+/// Represents a primitive Rust type
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Primitive {
     Null,
     Boolean,
     Integer,
-    Number,
+    Float,
     String,
 }
 
@@ -55,7 +56,7 @@ impl Primitive {
             Null => "()",
             Boolean => "bool",
             Integer => "i64",
-            Number => "f64",
+            Float => "f64",
             String => "String",
         }
     }
