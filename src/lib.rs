@@ -18,6 +18,7 @@ pub mod typebuilder;
 
 use errors::*;
 use utils::*;
+use typebuilder::Type;
 
 #[allow(unused_doc_comment)]
 pub mod errors {
@@ -137,13 +138,12 @@ pub struct NewType {
     name: String,
     vis: Visibility,
     attrs: Attributes,
-    typ: String,
+    typ: Type,
 }
 
 impl NewType {
-    pub fn new(name: String, vis: Visibility, attrs: Attributes, typ: String) -> Result<NewType> {
+    pub fn new(name: String, vis: Visibility, attrs: Attributes, typ: Type) -> Result<NewType> {
         validate_identifier(&name)?;
-        validate_identifier(&typ)?;
         Ok(NewType {
             name,
             vis,
@@ -156,7 +156,7 @@ impl NewType {
 impl ToTokens for NewType {
     fn to_tokens(&self, tokens: &mut Tokens) {
         let name = Ident::from(&*self.name);
-        let typ = Ident::from(&*self.typ);
+        let typ = Ident::from(self.typ.to_string());
         let attrs = &self.attrs;
         let vis = self.vis;
         let toks =
@@ -265,14 +265,14 @@ impl ToTokens for Attributes {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Field {
     pub name: String,
-    pub typ: String,
+    pub typ: Type,
     pub attrs: Vec<FieldAttr>, // TODO separate field attrs?
 }
 
 impl Field {
     pub fn new(name: String, typ: String, attrs: Vec<FieldAttr>) -> Result<Field> {
         validate_identifier(&name)?;
-        validate_identifier(&typ)?;
+        let typ = Type::named(typ)?;
         Ok(Field { name, typ, attrs })
     }
 
@@ -292,7 +292,7 @@ impl ToTokens for Field {
     fn to_tokens(&self, tokens: &mut Tokens) {
         let name = Ident::from(&*self.name);
         let attrs = &self.attrs;
-        let typ = Ident::from(&*self.typ);
+        let typ = Ident::from(&*self.typ.to_string());
         let tok =
             quote! {
                 #(#attrs)*
@@ -305,16 +305,13 @@ impl ToTokens for Field {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Variant {
     name: String,
-    typ: Option<String>,
+    typ: Option<Type>,
     attrs: Vec<FieldAttr>, // TODO separate field attrs?
 }
 
 impl Variant {
-    pub fn new(name: String, typ: Option<String>, attrs: Vec<FieldAttr>) -> Result<Variant> {
+    pub fn new(name: String, typ: Option<Type>, attrs: Vec<FieldAttr>) -> Result<Variant> {
         validate_identifier(&name)?;
-        if let Some(ref typ) = typ {
-            validate_identifier(typ)?;
-        }
         Ok(Variant { name, typ, attrs })
     }
 }
@@ -325,7 +322,7 @@ impl ToTokens for Variant {
         let attrs = &self.attrs;
         let tok = match self.typ {
             Some(ref t) => {
-                let typ = Ident::from(t.as_str());
+                let typ = Ident::from(t.to_string());
                 quote! {
                     #(#attrs)* #name(#typ)
                 }
@@ -487,8 +484,11 @@ pub struct MyStruct {
                     Default::default(),
                     vec![FieldAttr::SerdeRename("used-to-be-this".into())]
                 ).unwrap(),
-                Variant::new("Variant2".into(), Some("VType".into()), Default::default())
-                    .unwrap(),
+                Variant::new(
+                    "Variant2".into(),
+                    Some(Type::named("VType".into()).unwrap()),
+                    Default::default()
+                ).unwrap(),
             ],
         ).unwrap();
         let pretty = rust_format(&e.to_string()).unwrap();
@@ -509,7 +509,7 @@ pub(crate) enum MyEnum {
             "MyNewType".into(),
             Visibility::Private,
             Default::default(),
-            "MyOldType".into(),
+            Type::named("MyOldType".into()).unwrap(),
         ).unwrap();
         let pretty = rust_format(&n.to_string()).unwrap();
         let expect = "struct MyNewType(MyOldType);\n";

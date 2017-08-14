@@ -1,37 +1,61 @@
 use std::fmt;
+use errors::*;
+use utils;
 
-pub enum TypeBuilder {
-    Primitive(Primitive),
-    Box(Box<TypeBuilder>),
-    Vec(Box<TypeBuilder>),
-    Option(Box<TypeBuilder>),
-    Result(Box<TypeBuilder>, Box<TypeBuilder>),
-    Named(String),
-    Ref(Box<TypeBuilder>),
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Id(String);
+
+impl Id {
+    pub fn new(ident: String) -> Result<Id> {
+        utils::validate_identifier(&ident)?;
+        Ok(Id(ident))
+    }
 }
 
-impl TypeBuilder {
+impl fmt::Display for Id {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Type {
+    Primitive(Primitive),
+    Box(Box<Type>),
+    Vec(Box<Type>),
+    Option(Box<Type>),
+    Result(Box<Type>, Box<Type>),
+    Named(Id),
+    Ref(Box<Type>),
+}
+
+impl Type {
+    pub fn named(name: String) -> Result<Type> {
+        Ok(Type::Named(Id::new(name)?))
+    }
+
     fn render(&self) -> String {
-        use self::TypeBuilder::*;
+        use self::Type::*;
         match *self {
             Primitive(ref primitive) => primitive.native().to_string(),
             Box(ref tb) => format!("Box<{}>", tb.render()),
             Vec(ref tb) => format!("Vec<{}>", tb.render()),
             Option(ref tb) => format!("Option<{}>", tb.render()),
             Result(ref tb1, ref tb2) => format!("Result<{}, {}>", tb1.render(), tb2.render()),
-            Named(ref name) => name.clone(),
-            Ref(ref tb) => format!("&{}", tb.render())
+            Named(ref name) => name.to_string(),
+            Ref(ref tb) => format!("&{}", tb.render()),
         }
     }
 }
 
-impl fmt::Display for TypeBuilder {
+impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.render())
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Primitive {
     Null,
     Boolean,
@@ -53,6 +77,12 @@ impl Primitive {
     }
 }
 
+impl fmt::Display for Primitive {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.native())
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -60,13 +90,15 @@ mod tests {
 
     #[test]
     fn test_type_builder() {
-        let typ = TypeBuilder::Box(
-            Box::new(TypeBuilder::Result(
-                Box::new(TypeBuilder::Named("ResultLeft".into())),
-                Box::new(TypeBuilder::Vec(
-                    Box::new(TypeBuilder::Option(
-                        Box::new(TypeBuilder::Ref(
-                            Box::new(TypeBuilder::Primitive(Primitive::String)))))))))));
-        assert_eq!(typ.render(), "Box<Result<ResultLeft, Vec<Option<&String>>>>");
+        let typ = Type::Box(Box::new(Type::Result(
+            Box::new(Type::Named(Id::new("ResultLeft".into()).unwrap())),
+            Box::new(Type::Vec(Box::new(Type::Option(Box::new(
+                Type::Ref(Box::new(Type::Primitive(Primitive::String))),
+            ))))),
+        )));
+        assert_eq!(
+            typ.render(),
+            "Box<Result<ResultLeft, Vec<Option<&String>>>>"
+        );
     }
 }
