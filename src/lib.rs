@@ -14,6 +14,7 @@ use std::collections::BTreeSet;
 
 mod keywords;
 pub mod utils;
+pub mod typebuilder;
 
 use errors::*;
 use utils::*;
