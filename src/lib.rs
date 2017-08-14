@@ -12,10 +12,12 @@ use std::collections::BTreeSet;
 
 mod keywords;
 pub mod utils;
+pub mod items;
 mod typebuilder;
 
 use errors::*;
 pub use typebuilder::{Type, Primitive};
+use items::IdMap;
 
 #[allow(unused_doc_comment)]
 pub mod errors {
@@ -34,7 +36,7 @@ lazy_static! {
 
 /// Wrapper around String which guarantees that
 /// the value can be used as a Rust identifier
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Id(String);
 
 impl Id {
@@ -196,6 +198,21 @@ impl fmt::Display for Field {
         let attrs = render_delimited(&self.attrs, " ");
         write!(f, "{} {}:{}", attrs, self.name, self.typ)
     }
+}
+
+impl Field {
+    pub(crate) fn get_named_type(&self) -> Option<&Id> {
+        self.typ.named_root()
+    }
+
+    pub(crate) fn is_defaultable(&self, map: &IdMap) -> bool {
+        self.typ.is_defaultable(map)
+    }
+
+    pub(crate) fn contains_unboxed_id(&self, name: &Id, map: &IdMap) -> bool {
+        self.typ.contains_unboxed_id(name, map)
+    }
+
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, new)]

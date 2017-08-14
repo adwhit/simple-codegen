@@ -1,6 +1,7 @@
 use std::fmt;
 use errors::*;
 use Id;
+use items::IdMap;
 
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,6 +30,53 @@ impl Type {
             Result(ref tb1, ref tb2) => format!("Result<{}, {}>", tb1.render(), tb2.render()),
             Named(ref name) => name.to_string(),
             Ref(ref tb) => format!("&{}", tb.render()),
+        }
+    }
+
+    pub(crate) fn named_root(&self) -> Option<&Id> {
+        use self::Type::*;
+        match *self {
+            Primitive(_) => None,
+            Box(ref tb) => tb.named_root(),
+            Vec(ref tb) => tb.named_root(),
+            Option(ref tb) => tb.named_root(),
+            Result(ref tb1, ref tb2) => tb1.named_root(), // FIXME discard tb2?
+            Named(ref name) => Some(name),
+            Ref(ref tb) => tb.named_root(),
+        }
+    }
+
+    pub(crate) fn is_defaultable(&self, map: &IdMap) -> bool {
+        use self::Type::*;
+        match *self {
+            Primitive(_) => true,
+            Box(ref tb) => tb.is_defaultable(map),
+            Vec(_) => true,
+            Option(_) => true,
+            Result(_, _) => false,
+            Named(ref name) => {
+                map.get(name)
+                    .map(|item| item.is_defaultable(&map))
+                    .unwrap_or(false)
+            }
+            Ref(_) => false,
+        }
+    }
+
+    pub(crate) fn contains_unboxed_id(&self, id: &Id, map: &IdMap) -> bool {
+        use self::Type::*;
+        match *self {
+            Option(ref tb) => tb.contains_unboxed_id(id, map),
+            Result(ref tb1, ref tb2) => tb1.contains_unboxed_id(id, map) && tb2.contains_unboxed_id(id, map),
+            Named(ref name) => {
+                map.get(name)
+                    .map(|item| item.contains_unboxed_id(id, map))
+                    .unwrap_or(false)
+            }
+            Primitive(_) => false,
+            Ref(_) => false,
+            Box(_) => false,
+            Vec(_) => false,
         }
     }
 }
