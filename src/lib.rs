@@ -214,13 +214,16 @@ impl fmt::Display for Field {
 }
 
 impl Field {
-    pub fn with_rename<I: Into<String>>(name: I, typ: Type) -> Field {
-        let ident: String = name.into();
-        if ident.is_snake_case() {
-            Field { name: Id(ident), typ, attrs: vec![] }
+    pub fn with_rename(id: Id, typ: Type) -> Field {
+        if id.0.is_snake_case() {
+            Field {
+                name: id,
+                typ,
+                attrs: vec![],
+            }
         } else {
-            let name = Id(ident.to_snake_case());
-            let attrs = vec![FieldAttr::SerdeRename(ident)];
+            let name = Id(id.0.to_snake_case());
+            let attrs = vec![FieldAttr::SerdeRename(id.0)];
             Field { name, typ, attrs }
         }
     }
@@ -236,7 +239,6 @@ impl Field {
     pub(crate) fn contains_unboxed_id(&self, id: &Id, map: &ItemMap) -> bool {
         self.typ.contains_unboxed_id(id, map)
     }
-
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, new)]
@@ -261,14 +263,14 @@ impl Variant {
     fn contains_unboxed_id(&self, id: &Id, map: &ItemMap) -> bool {
         match self.typ {
             Some(ref typ) => typ.contains_unboxed_id(id, map),
-            None => false
+            None => false,
         }
 
     }
     pub(crate) fn get_named_type(&self) -> Option<&Id> {
         match self.typ {
             Some(ref typ) => typ.get_named_root(),
-            None => None
+            None => None,
         }
 
     }
@@ -406,7 +408,7 @@ mod tests {
                     vec![SerdeRename("Field-2".into()), SerdeDefault]
                 ),
                 Field::with_rename(
-                    "SnakeCaseMe",
+                    Id::new("SnakeCaseMe").unwrap(),
                     Type::named("Type3").unwrap()
                 ),
             ],

@@ -23,11 +23,14 @@ impl ItemMap {
     }
 
     fn find_named_types(&self) -> Vec<&Id> {
-        self.0.iter().flat_map(|(id, item)| {
-            let mut v = item.get_named_types();
-            v.push(id);
-            v
-        }).collect()
+        self.0
+            .iter()
+            .flat_map(|(id, item)| {
+                let mut v = item.get_named_types();
+                v.push(id);
+                v
+            })
+            .collect()
     }
 }
 
@@ -49,7 +52,9 @@ impl Item for Struct {
         self.fields.iter().all(|field| field.is_defaultable(map))
     }
     fn contains_unboxed_id(&self, id: &Id, map: &ItemMap) -> bool {
-        self.fields.iter().any(|field| field.contains_unboxed_id(id, map))
+        self.fields.iter().any(
+            |field| field.contains_unboxed_id(id, map),
+        )
     }
     fn get_named_types(&self) -> Vec<&Id> {
         self.fields

@@ -82,7 +82,9 @@ impl Type {
         match *self {
             Option(ref tb) => tb.contains_unboxed_id(id, map),
             Map(ref tb) => tb.contains_unboxed_id(id, map),
-            Result(ref tb1, ref tb2) => tb1.contains_unboxed_id(id, map) && tb2.contains_unboxed_id(id, map),
+            Result(ref tb1, ref tb2) => {
+                tb1.contains_unboxed_id(id, map) && tb2.contains_unboxed_id(id, map)
+            }
             Named(ref name) => {
                 map.get(name)
                     .map(|item| item.contains_unboxed_id(id, map))
@@ -140,9 +142,11 @@ mod tests {
     fn test_type_builder() {
         let typ = Type::Box(Box::new(Type::Result(
             Box::new(Type::Named(Id::new("ResultLeft").unwrap())),
-            Box::new(Type::Map(Box::new(Type::Vec(Box::new(Type::Option(Box::new(
-                Type::Ref(Box::new(Type::Primitive(Primitive::String))),
-            ))))))),
+            Box::new(Type::Map(
+                Box::new(Type::Vec(Box::new(Type::Option(Box::new(
+                    Type::Ref(Box::new(Type::Primitive(Primitive::String))),
+                ))))),
+            )),
         )));
         assert_eq!(
             typ.render(),
