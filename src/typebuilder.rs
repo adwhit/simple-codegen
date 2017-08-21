@@ -1,7 +1,7 @@
 use std::fmt;
 use errors::*;
 use Id;
-use items::IdMap;
+use items::ItemMap;
 
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,7 +46,7 @@ impl Type {
         }
     }
 
-    pub(crate) fn is_defaultable(&self, map: &IdMap) -> bool {
+    pub(crate) fn is_defaultable(&self, map: &ItemMap) -> bool {
         use self::Type::*;
         match *self {
             Primitive(_) => true,
@@ -63,7 +63,7 @@ impl Type {
         }
     }
 
-    pub(crate) fn contains_unboxed_id(&self, id: &Id, map: &IdMap) -> bool {
+    pub(crate) fn contains_unboxed_id(&self, id: &Id, map: &ItemMap) -> bool {
         use self::Type::*;
         match *self {
             Option(ref tb) => tb.contains_unboxed_id(id, map),

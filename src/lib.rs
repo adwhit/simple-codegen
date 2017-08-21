@@ -6,9 +6,12 @@ extern crate tempdir;
 extern crate lazy_static;
 #[macro_use]
 extern crate derive_new;
+extern crate inflector;
 
 use std::fmt;
 use std::collections::BTreeSet;
+
+use inflector::Inflector;
 
 mod keywords;
 pub mod utils;
@@ -17,7 +20,7 @@ mod typebuilder;
 
 use errors::*;
 pub use typebuilder::{Type, Primitive};
-use items::IdMap;
+use items::ItemMap;
 
 #[allow(unused_doc_comment)]
 pub mod errors {
@@ -201,15 +204,26 @@ impl fmt::Display for Field {
 }
 
 impl Field {
+    pub fn with_rename<I: Into<String>>(name: I, typ: Type) -> Field {
+        let ident: String = name.into();
+        if ident.is_snake_case() {
+            Field { name: Id(ident), typ, attrs: vec![] }
+        } else {
+            let name = Id(ident.to_snake_case());
+            let attrs = vec![FieldAttr::SerdeRename(ident)];
+            Field { name, typ, attrs }
+        }
+    }
+
     pub(crate) fn get_named_type(&self) -> Option<&Id> {
         self.typ.named_root()
     }
 
-    pub(crate) fn is_defaultable(&self, map: &IdMap) -> bool {
+    pub(crate) fn is_defaultable(&self, map: &ItemMap) -> bool {
         self.typ.is_defaultable(map)
     }
 
-    pub(crate) fn contains_unboxed_id(&self, name: &Id, map: &IdMap) -> bool {
+    pub(crate) fn contains_unboxed_id(&self, name: &Id, map: &ItemMap) -> bool {
         self.typ.contains_unboxed_id(name, map)
     }
 
@@ -282,6 +296,7 @@ impl fmt::Display for FieldAttr {
     }
 }
 
+// TODO not sure if we want/need separate fieldattr and variantattr enums
 // #[derive(Clone, Debug)]
 // enum VariantAttr {
 //     SerdeRename(String),
@@ -362,6 +377,10 @@ mod tests {
                     Type::named("Type2").unwrap(),
                     vec![SerdeRename("Field-2".into()), SerdeDefault]
                 ),
+                Field::with_rename(
+                    "SnakeCaseMe",
+                    Type::named("Type3").unwrap()
+                ),
             ],
         );
 
@@ -373,6 +392,8 @@ pub struct MyStruct {
     #[serde(rename = "Field-2")]
     #[serde(default)]
     field2: Type2,
+    #[serde(rename = "SnakeCaseMe")]
+    snake_case_me: Type3,
 }
 "#;
         assert_eq!(pretty, expect);
@@ -435,5 +456,4 @@ pub(crate) enum MyEnum {
         let expect = "pub(crate) type MyAlias = MyAliasedType;\n";
         assert_eq!(pretty, expect);
     }
-
 }
