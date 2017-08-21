@@ -39,7 +39,7 @@ lazy_static! {
 
 /// Wrapper around String which guarantees that
 /// the value can be used as a Rust identifier
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(String);
 
 impl Id {
@@ -79,6 +79,23 @@ pub struct Struct {
     vis: Visibility,
     attrs: Attributes,
     fields: Vec<Field>,
+}
+
+impl Struct {
+    pub fn merge(new_name: Id, vis: Visibility, attrs: Attributes, structs: &[Struct]) -> Result<Struct> {
+        let mut fields = Vec::new();
+        let mut field_chk = BTreeSet::new();
+        for s in structs {
+            for field in &s.fields {
+                if !field_chk.insert(field.name.clone()) {
+                    bail!("Duplicated field '{}'", field.name)
+                }
+                fields.push(field.clone());
+            }
+        }
+        Ok(Struct::new(new_name, vis, attrs, fields))
+    }
+
 }
 
 impl fmt::Display for Struct {

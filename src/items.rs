@@ -22,7 +22,7 @@ impl ItemMap {
         self.0.get(id)
     }
 
-    fn find_named_types(&self) -> Vec<&Id> {
+    pub fn find_named_types(&self) -> Vec<&Id> {
         self.0
             .iter()
             .flat_map(|(id, item)| {
@@ -68,7 +68,7 @@ impl Item for Enum {
     fn name(&self) -> &Id {
         &self.name
     }
-    fn is_defaultable(&self, map: &ItemMap) -> bool {
+    fn is_defaultable(&self, _: &ItemMap) -> bool {
         false
     }
     fn contains_unboxed_id(&self, id: &Id, map: &ItemMap) -> bool {
