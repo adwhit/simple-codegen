@@ -91,3 +91,18 @@ impl Item for NewType {
         self.typ.get_named_root().into_iter().collect()
     }
 }
+
+impl Item for Alias {
+    fn name(&self) -> &Id {
+        &self.name
+    }
+    fn is_defaultable(&self, map: &ItemMap) -> bool {
+        self.typ.is_defaultable(map)
+    }
+    fn contains_unboxed_id(&self, id: &Id, map: &ItemMap) -> bool {
+        self.typ.contains_unboxed_id(id, map)
+    }
+    fn get_named_types(&self) -> Vec<&Id> {
+        self.typ.get_named_root().into_iter().collect()
+    }
+}
