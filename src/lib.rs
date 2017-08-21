@@ -20,7 +20,7 @@ mod typebuilder;
 
 use errors::*;
 pub use typebuilder::{Type, Primitive};
-use items::ItemMap;
+pub use items::{Item, ItemMap};
 
 #[allow(unused_doc_comment)]
 pub mod errors {
@@ -226,7 +226,7 @@ impl Field {
     }
 
     pub(crate) fn get_named_type(&self) -> Option<&Id> {
-        self.typ.named_root()
+        self.typ.get_named_root()
     }
 
     pub(crate) fn is_defaultable(&self, map: &ItemMap) -> bool {
@@ -253,6 +253,24 @@ impl fmt::Display for Variant {
             Some(ref t) => write!(f, "{} {}({})", attrs, self.name, t),
             None => write!(f, "{} {}", attrs, self.name),
         }
+    }
+}
+
+impl Variant {
+    // TODO make this into a fold
+    fn contains_unboxed_id(&self, id: &Id, map: &ItemMap) -> bool {
+        match self.typ {
+            Some(ref typ) => typ.contains_unboxed_id(id, map),
+            None => false
+        }
+
+    }
+    pub(crate) fn get_named_type(&self) -> Option<&Id> {
+        match self.typ {
+            Some(ref typ) => typ.get_named_root(),
+            None => None
+        }
+
     }
 }
 

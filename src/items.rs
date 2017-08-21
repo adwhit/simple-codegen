@@ -58,3 +58,21 @@ impl Item for Struct {
             .collect()
     }
 }
+
+impl Item for Enum {
+    fn name(&self) -> &Id {
+        &self.name
+    }
+    fn is_defaultable(&self, map: &ItemMap) -> bool {
+        false
+    }
+    fn contains_unboxed_id(&self, id: &Id, map: &ItemMap) -> bool {
+        self.variants.iter().any(|v| v.contains_unboxed_id(id, map))
+    }
+    fn get_named_types(&self) -> Vec<&Id> {
+        self.variants
+            .iter()
+            .filter_map(|variant| variant.get_named_type())
+            .collect()
+    }
+}

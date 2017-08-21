@@ -43,17 +43,19 @@ impl Type {
         }
     }
 
-    pub(crate) fn named_root(&self) -> Option<&Id> {
+    /// Dereference the Type until we either get to Named or
+    /// Primitive, then return the Id or None
+    pub(crate) fn get_named_root(&self) -> Option<&Id> {
         use self::Type::*;
         match *self {
             Primitive(_) => None,
-            Box(ref tb) => tb.named_root(),
-            Vec(ref tb) => tb.named_root(),
-            Option(ref tb) => tb.named_root(),
-            Result(ref tb1, ref tb2) => tb1.named_root(), // FIXME discard tb2?
-            Map(ref tb) => tb.named_root(),
+            Box(ref tb) => tb.get_named_root(),
+            Vec(ref tb) => tb.get_named_root(),
+            Option(ref tb) => tb.get_named_root(),
+            Result(ref tb1, ref tb2) => tb1.get_named_root(), // FIXME discard tb2?
+            Map(ref tb) => tb.get_named_root(),
             Named(ref name) => Some(name),
-            Ref(ref tb) => tb.named_root(),
+            Ref(ref tb) => tb.get_named_root(),
         }
     }
 
