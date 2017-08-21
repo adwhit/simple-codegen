@@ -48,6 +48,16 @@ impl Id {
         utils::validate_identifier(&ident)?;
         Ok(Id(ident))
     }
+
+    /// Create a new Id, possibly mangled to make it into a valid identifier
+    pub fn valid<I: Into<String>>(ident: I) -> Result<Id> {
+        let ident = ident.into();
+        if let std::borrow::Cow::Owned(id) = utils::make_valid_identifier(&ident)? {
+            Ok(Id(id))
+        } else {
+            Ok(Id(ident))
+        }
+    }
 }
 
 impl std::ops::Deref for Id {
