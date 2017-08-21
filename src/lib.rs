@@ -214,17 +214,19 @@ impl fmt::Display for Field {
 }
 
 impl Field {
-    pub fn with_rename(id: Id, typ: Type) -> Field {
-        if id.0.is_snake_case() {
-            Field {
-                name: id,
+    pub fn with_rename<I: Into<String>>(id: I, typ: Type) -> Result<Field> {
+        let id: String = id.into();
+        if id.is_snake_case() {
+            let name = Id::valid(id)?;
+            Ok(Field {
+                name,
                 typ,
                 attrs: vec![],
-            }
+            })
         } else {
-            let name = Id(id.0.to_snake_case());
-            let attrs = vec![FieldAttr::SerdeRename(id.0)];
-            Field { name, typ, attrs }
+            let name = Id::valid(id.to_snake_case())?;
+            let attrs = vec![FieldAttr::SerdeRename(id)];
+            Ok(Field { name, typ, attrs })
         }
     }
 
@@ -407,10 +409,8 @@ mod tests {
                     Type::named("Type2").unwrap(),
                     vec![SerdeRename("Field-2".into()), SerdeDefault]
                 ),
-                Field::with_rename(
-                    Id::new("SnakeCaseMe").unwrap(),
-                    Type::named("Type3").unwrap()
-                ),
+                Field::with_rename("Snake Case Me", Type::named("Type3").unwrap())
+                    .unwrap(),
             ],
         );
 
@@ -422,7 +422,7 @@ pub struct MyStruct {
     #[serde(rename = "Field-2")]
     #[serde(default)]
     field2: Type2,
-    #[serde(rename = "SnakeCaseMe")]
+    #[serde(rename = "Snake Case Me")]
     snake_case_me: Type3,
 }
 "#;
