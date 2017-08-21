@@ -11,6 +11,7 @@ pub enum Type {
     Vec(Box<Type>),
     Option(Box<Type>),
     Result(Box<Type>, Box<Type>),
+    Map(Box<Type>),
     Named(Id),
     Ref(Box<Type>),
 }
@@ -18,6 +19,14 @@ pub enum Type {
 impl Type {
     pub fn named<I: Into<String>>(name: I) -> Result<Type> {
         Ok(Type::Named(Id::new(name)?))
+    }
+
+    pub fn optional(self, opt: bool) -> Type {
+        if opt {
+            Type::Option(Box::new(self))
+        } else {
+            self
+        }
     }
 
     fn render(&self) -> String {
@@ -28,6 +37,7 @@ impl Type {
             Vec(ref tb) => format!("Vec<{}>", tb.render()),
             Option(ref tb) => format!("Option<{}>", tb.render()),
             Result(ref tb1, ref tb2) => format!("Result<{}, {}>", tb1.render(), tb2.render()),
+            Map(ref tb) => format!("Map<String, {}>", tb.render()),
             Named(ref name) => name.to_string(),
             Ref(ref tb) => format!("&{}", tb.render()),
         }
@@ -41,6 +51,7 @@ impl Type {
             Vec(ref tb) => tb.named_root(),
             Option(ref tb) => tb.named_root(),
             Result(ref tb1, ref tb2) => tb1.named_root(), // FIXME discard tb2?
+            Map(ref tb) => tb.named_root(),
             Named(ref name) => Some(name),
             Ref(ref tb) => tb.named_root(),
         }
@@ -53,6 +64,7 @@ impl Type {
             Box(ref tb) => tb.is_defaultable(map),
             Vec(_) => true,
             Option(_) => true,
+            Map(_) => true,
             Result(_, _) => false,
             Named(ref name) => {
                 map.get(name)
@@ -67,6 +79,7 @@ impl Type {
         use self::Type::*;
         match *self {
             Option(ref tb) => tb.contains_unboxed_id(id, map),
+            Map(ref tb) => tb.contains_unboxed_id(id, map),
             Result(ref tb1, ref tb2) => tb1.contains_unboxed_id(id, map) && tb2.contains_unboxed_id(id, map),
             Named(ref name) => {
                 map.get(name)
@@ -92,8 +105,8 @@ impl fmt::Display for Type {
 pub enum Primitive {
     Null,
     Boolean,
-    Integer,
-    Float,
+    I64,
+    F64,
     String,
 }
 
@@ -103,8 +116,8 @@ impl Primitive {
         match *self {
             Null => "()",
             Boolean => "bool",
-            Integer => "i64",
-            Float => "f64",
+            I64 => "i64",
+            F64 => "f64",
             String => "String",
         }
     }
@@ -125,13 +138,13 @@ mod tests {
     fn test_type_builder() {
         let typ = Type::Box(Box::new(Type::Result(
             Box::new(Type::Named(Id::new("ResultLeft").unwrap())),
-            Box::new(Type::Vec(Box::new(Type::Option(Box::new(
+            Box::new(Type::Map(Box::new(Type::Vec(Box::new(Type::Option(Box::new(
                 Type::Ref(Box::new(Type::Primitive(Primitive::String))),
-            ))))),
+            ))))))),
         )));
         assert_eq!(
             typ.render(),
-            "Box<Result<ResultLeft, Vec<Option<&String>>>>"
+            "Box<Result<ResultLeft, Map<String, Vec<Option<&String>>>>>"
         );
     }
 }

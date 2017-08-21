@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use errors::*;
 use RUST_KEYWORDS;
 
-pub fn validate_identifier(ident: &str) -> Result<()> {
+pub(crate) fn validate_identifier(ident: &str) -> Result<()> {
     // This assumes ASCII character set
     if ident == "_" {
         bail!("'_' is not a valid item name")
@@ -33,7 +33,7 @@ pub fn validate_identifier(ident: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn make_valid_identifier(ident: &str) -> Result<Cow<str>> {
+pub(crate) fn make_valid_identifier(ident: &str) -> Result<Cow<str>> {
     // strip out invalid characters and ensure result is valid
     // bit ugly to reallocate but at least it is simple
     // TODO use unicode XID_start/XID_continue
