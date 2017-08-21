@@ -233,8 +233,8 @@ impl Field {
         self.typ.is_defaultable(map)
     }
 
-    pub(crate) fn contains_unboxed_id(&self, name: &Id, map: &ItemMap) -> bool {
-        self.typ.contains_unboxed_id(name, map)
+    pub(crate) fn contains_unboxed_id(&self, id: &Id, map: &ItemMap) -> bool {
+        self.typ.contains_unboxed_id(id, map)
     }
 
 }
