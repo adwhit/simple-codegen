@@ -1,7 +1,14 @@
 use std::borrow::Cow;
+use std::collections::BTreeSet;
 
+use keywords;
 use errors::*;
-use RUST_KEYWORDS;
+
+lazy_static! {
+    static ref RUST_KEYWORDS: BTreeSet<&'static str> = {
+        keywords::RUST_KEYWORDS.iter().map(|v| *v).collect()
+    };
+}
 
 pub(crate) fn validate_identifier(ident: &str) -> Result<()> {
     // This assumes ASCII character set

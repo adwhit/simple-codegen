@@ -1,3 +1,13 @@
+//! Simple code generation for Rust
+//!
+//! Helper utilities to help users generate valid Rust code.
+//! The focus is on the 80% use case. It tries to make it the simple,
+//! common cases easy to write, but should not stop the user
+//! from building more complicated constructs.
+//!
+//! This crate is designed to be used for codegen with `serde`
+//! and comes with helper functions to add `serde` attributes
+
 #[macro_use]
 extern crate error_chain;
 extern crate rustfmt;
@@ -31,12 +41,6 @@ pub mod errors {
     }
 }
 
-lazy_static! {
-    static ref RUST_KEYWORDS: BTreeSet<&'static str> = {
-        keywords::RUST_KEYWORDS.iter().map(|v| *v).collect()
-    };
-}
-
 /// Wrapper around String which guarantees that
 /// the value can be used as a Rust identifier
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -50,7 +54,7 @@ impl Id {
     }
 
     /// Create a new Id, possibly mangled to make it into a valid identifier
-    pub fn valid<I: Into<String>>(ident: I) -> Result<Id> {
+    pub fn make_valid<I: Into<String>>(ident: I) -> Result<Id> {
         let ident = ident.into();
         if let std::borrow::Cow::Owned(id) = utils::make_valid_identifier(&ident)? {
             Ok(Id(id))
@@ -73,6 +77,43 @@ impl fmt::Display for Id {
     }
 }
 
+/// Represents a Rust struct
+///
+/// # Example
+///
+/// ```ignore
+/// let my_struct = Struct::new(
+///     Id::new("MyStruct").unwrap(),
+///     Visibility::Public,
+///     Attributes::default().derive(&[Clone, Debug]).cfg(
+///         &[Test, TargetOs("linux".into())],
+///     ),
+///     vec![Field::new(
+///             Id::new("field1").unwrap(),
+///             Type::named("Type1").unwrap(),
+///             Default::default()
+///         ),
+///         Field::new(
+///             Id::new("field2").unwrap(),
+///             Type::Box(Box::new(Type::named("Type2").unwrap())),
+///             vec![SerdeRename("Field-2".into()), SerdeDefault]
+///         ),
+///         Field::with_rename("Snake Case Me", Type::named("Type3").unwrap())
+///             .unwrap(),
+///     ],
+/// );
+/// println!("{}", rust_format(my_struct.to_string()).unwrap());
+/// // #[derive(Debug, Clone)]
+/// // #[cfg(test, target_os = "linux")]
+/// // pub struct MyStruct {
+/// //     field1: Type1,
+/// //     #[serde(rename = "Field-2")]
+/// //     #[serde(default)]
+/// //     field2: Box<Type2>,
+/// //     #[serde(rename = "Snake Case Me")]
+/// //     snake_case_me: Type3,
+/// // }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, new)]
 pub struct Struct {
     name: Id,
@@ -231,17 +272,18 @@ impl fmt::Display for Field {
 }
 
 impl Field {
+    /// Create a Field with the poss
     pub fn with_rename<I: Into<String>>(id: I, typ: Type) -> Result<Field> {
         let id: String = id.into();
         if id.is_snake_case() {
-            let name = Id::valid(id)?;
+            let name = Id::make_valid(id)?;
             Ok(Field {
                 name,
                 typ,
                 attrs: vec![],
             })
         } else {
-            let name = Id::valid(id.to_snake_case())?;
+            let name = Id::make_valid(id.to_snake_case())?;
             let attrs = vec![FieldAttr::SerdeRename(id)];
             Ok(Field { name, typ, attrs })
         }
@@ -423,7 +465,7 @@ mod tests {
                 ),
                 Field::new(
                     Id::new("field2").unwrap(),
-                    Type::named("Type2").unwrap(),
+                    Type::Box(Box::new(Type::named("Type2").unwrap())),
                     vec![SerdeRename("Field-2".into()), SerdeDefault]
                 ),
                 Field::with_rename("Snake Case Me", Type::named("Type3").unwrap())
@@ -438,7 +480,7 @@ pub struct MyStruct {
     field1: Type1,
     #[serde(rename = "Field-2")]
     #[serde(default)]
-    field2: Type2,
+    field2: Box<Type2>,
     #[serde(rename = "Snake Case Me")]
     snake_case_me: Type3,
 }
